@@ -146,16 +146,17 @@ def set_auto_start(enabled, app_name, app_path):
         else:
             # 取消自启动
             reg.DeleteValue(key, app_name)
-            reg.CloseKey(key)
+        reg.CloseKey(key)
         return True
-    except WindowsError:
+    except WindowsError as e:
+        print(f"Error updating registry: {e}")
         return False
 
 
 def toggle_auto_start():
     """切换自启动设置"""
     app_name = "DetectFileWatcher"
-    app_path = os.path.realpath(__file__)  # 当前脚本路径
+    app_path = os.path.realpath(sys.argv[0])  # 当前脚本路径
     if set_auto_start(auto_start_var.get(), app_name, app_path):
         messagebox.showinfo("Success", "Setting updated successfully!")
     else:
