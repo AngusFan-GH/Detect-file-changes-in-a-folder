@@ -1,7 +1,12 @@
+import os
 import subprocess
 
 # 要打包的Python脚本的名称
 script_name = input("请输入要打包的Python脚本的名称（包括扩展名）：")
+
+# 检查输入名相同的旧文件是否存在，如果存在则删除
+if os.path.exists('dist/' + script_name):
+    os.remove('dist/' + script_name)
 
 # PyInstaller的命令参数
 # --onefile 创建单个可执行文件
