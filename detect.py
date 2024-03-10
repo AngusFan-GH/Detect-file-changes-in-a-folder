@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -125,27 +126,27 @@ def on_closing():
         sys.exit()
 
 
-def set_auto_start(enabled, app_name, app_path):
+def set_auto_start_with_task_scheduler(enabled, app_name, app_path):
     """
-    设置或取消程序的开机自启动。
+    使用Windows任务计划程序设置或取消程序的开机自启动。
     :param enabled: True 设置自启动，False 取消自启动
-    :param app_name: 注册表中的程序名称
+    :param app_name: 任务计划中的任务名称
     :param app_path: 程序的路径
     """
-    key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
     try:
-        # 打开“启动”注册表键
-        key = reg.OpenKey(reg.HKEY_CURRENT_USER, key_path, 0, reg.KEY_WRITE)
         if enabled:
-            # 设置自启动
-            reg.SetValueEx(key, app_name, 0, reg.REG_SZ, app_path)
+            # 创建任务计划命令
+            command = f'schtasks /create /tn "{app_name}" /tr "{app_path}" /sc onlogon /rl highest /f'
         else:
-            # 取消自启动
-            reg.DeleteValue(key, app_name)
-        reg.CloseKey(key)
+            # 删除任务计划命令
+            command = f'schtasks /delete /tn "{app_name}" /f'
+
+        result = subprocess.run(
+            command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(f"Task scheduler command executed. Output: {result.stdout}")
         return True
-    except WindowsError as e:
-        print(f"Error updating registry: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing task scheduler command: {e.output}")
         return False
 
 
@@ -153,7 +154,7 @@ def toggle_auto_start():
     """切换自启动设置"""
     app_name = "DetectFileWatcher"
     app_path = os.path.realpath(sys.argv[0])  # 当前脚本路径
-    if set_auto_start(auto_start_var.get(), app_name, app_path):
+    if set_auto_start_with_task_scheduler(auto_start_var.get(), app_name, app_path):
         messagebox.showinfo("Success", "Setting updated successfully!")
     else:
         messagebox.showerror("Error", "Failed to update setting.")
