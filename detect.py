@@ -62,18 +62,14 @@ class Handler(FileSystemEventHandler):
         if not event.is_directory:
             msg = f"New file created - {event.src_path}"
             print(msg)  # 控制台输出，也会在GUI中显示
-            self.output_area.insert(tk.END, msg + "\n")
+            # self.output_area.insert(tk.END, msg + "\n")
             self.output_area.see(tk.END)  # 自动滚动到底部
-            # 省略上传文件的代码
-            if not event.is_directory:
-                print(f"New file created - {event.src_path}")
-                # 调用外部接口
-                try:
-                    files = {'file': open(event.src_path, 'rb')}
-                    response = requests.post(self.api_url, files=files)
-                    print(response.text)
-                except Exception as e:
-                    print(f"Failed to call API: {e}")
+            try:
+                files = {'file': open(event.src_path, 'rb')}
+                response = requests.post(self.api_url, files=files)
+                print(response.text)
+            except Exception as e:
+                print(f"Failed to call API: {e}")
 
 
 def toggle_start_stop():
