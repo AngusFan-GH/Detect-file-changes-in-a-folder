@@ -1,0 +1,4 @@
+chardet
+watchdog
+requests
+pyinstaller

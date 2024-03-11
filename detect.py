@@ -7,6 +7,7 @@ import tkinter as tk
 import winreg as reg
 from tkinter import filedialog, messagebox, scrolledtext
 
+import chardet
 import requests
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -38,6 +39,7 @@ class ThreadedTask(threading.Thread):
 
     def run(self):
         event_handler = Handler(self.api_url, self.output_area)
+        event_handler.watch_directory = self.directory
         self.observer.schedule(event_handler, self.directory, recursive=True)
         self.observer.start()
         try:
@@ -59,16 +61,37 @@ class Handler(FileSystemEventHandler):
         self.api_url = api_url
         self.output_area = output_area
 
+    def is_target_file(self, file_path, root_path):
+        # 将文件路径标准化（移除末尾的文件名，保留目录路径）
+        file_dir = os.path.dirname(file_path)
+        # print(f"file_dir: {file_dir}")
+        # 计算根目录到当前文件目录的相对路径
+        relative_dir = os.path.relpath(file_dir, root_path)
+        # print(f"relative_dir: {relative_dir}")
+        # 计算路径中包含的目录级数
+        depth = len(relative_dir.split(os.path.sep))
+        # print(f"depth: {depth}")
+        # 检查文件是否是index.txt且位于第三级子目录中
+        is_index_file = os.path.basename(file_path) == 'index.txt'
+        # depth == 2
+        return is_index_file and depth == 2
+
     def on_created(self, event):
-        if not event.is_directory:
+        if not event.is_directory and self.is_target_file(event.src_path, self.watch_directory):
             msg = f"New file created - {event.src_path}"
             print(msg)  # 控制台输出，也会在GUI中显示
-            # self.output_area.insert(tk.END, msg + "\n")
             self.output_area.see(tk.END)  # 自动滚动到底部
+            log_file_path = os.path.join(
+                os.path.dirname(event.src_path), 'log.txt')
+            print(f"log_file_path: {log_file_path}")
             try:
-                files = {'file': open(event.src_path, 'rb')}
-                response = requests.post(self.api_url, files=files)
-                print(response.text)
+                # 解析log.txt并转换为JSON
+                log_data_json = parse_log_file(log_file_path)
+                print(f"log data in JSON format: {log_data_json}")
+
+                # files = {'file': open(event.src_path, 'rb')}
+                # response = requests.post(self.api_url, files=files)
+                # print(response.text)
             except Exception as e:
                 print(f"Failed to call API: {e}")
 
@@ -156,9 +179,10 @@ def toggle_auto_start():
     app_path = os.path.realpath(sys.argv[0])  # 当前脚本路径
     if set_auto_start_with_task_scheduler(auto_start_var.get(), app_name, app_path):
         messagebox.showinfo("Success", "Setting updated successfully!")
+        update_config(auto_start=auto_start_var.get())
     else:
         messagebox.showerror("Error", "Failed to update setting.")
-    update_config(auto_start=auto_start_var.get())
+        auto_start_var.set(not auto_start_var.get())  # 恢复之前的状态
 
 
 def save_config(config):
@@ -193,6 +217,35 @@ def update_config(**kwargs):
         print(f"Updated config: {config}")
 
     save_config(config)
+
+
+def parse_log_file(log_file_path):
+    # 读取log.txt文件内容
+    with open(log_file_path, 'rb') as f:
+        raw_data = f.read()
+        encoding = chardet.detect(raw_data)['encoding']
+        print(f"encoding: {encoding}")
+    with open(log_file_path, 'r', encoding=encoding) as file:
+        lines = file.readlines()
+
+    data = []
+    for line in lines:
+        print(line.strip())
+        if line.startswith('车号:'):
+            car_info = {}
+            car_info['车号'] = line.split(':')[1].strip()
+            data.append(car_info)
+        elif '车速' in line:
+            if data:
+                data[-1]['车速'] = line.split(':')[1].strip()
+        # elif '扫描行数' in line:
+            # if data:
+                # data[-1]['扫描行数'] = line.split(':')[1].strip()
+        elif '顺位' in line:
+            if data:
+                data[-1]['顺位'] = line.split(':')[1].strip()
+
+    return json.dumps(data, ensure_ascii=False)
 
 
 # 配置文件路径
